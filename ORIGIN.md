@@ -26,7 +26,11 @@ scheduler, config, API, or plugin behavior. Treat the upgrade as separate from o
 `origin-candidates/no-expiry-postwork.patch` is an **unapplied** five-line candidate for generated
 `ChunkHolderManager.java`. It is deliberately outside Canvas's build patch directories. Ordinary
 builds do not include it. See [the candidate record](origin-candidates/README.md) for verification
-and limits. No custom Canvas release has been built or deployed from this fork yet.
+and limits. A newer baseline distribution has been built and test-verified locally; no custom
+Canvas build has been deployed from this fork.
+
+The applied OriginWorks test patch routes custom-ingredient cases through the Bukkit registration
+constructor and adds two branch-routing regressions. It changes no runtime code.
 
 ## Initial remote setup on another machine
 
@@ -104,6 +108,30 @@ be rebuilt through Canvas's patch workflow, not committed as generated source tr
 The checked-in `.github/workflows/test-pr.yml` also documents upstream's patch-rebuild checks.
 
 A successful merge is not a successful build; a successful build is not a safe deployment.
+
+### Baseline verification and test-fixture correction (2026-09-15)
+
+At fork HEAD `e541e8e4`, the unmodified server suite failed
+`ShapelessRecipeMatchTest.predicate_plusRegular_renamedSatisfiesPredicateOnly` twice. The inherited
+Paper fixture used Canvas's four-argument `ShapelessRecipe` constructor, which sets `isBukkit=false`
+and selects the Pufferfish greedy `Ingredient.test` matcher. The custom-recipe registration path in
+`CraftShapelessRecipe.addToRecipeManager` passes `true`, selecting the Paper exact/predicate matcher
+that this test describes. The test was exercising the wrong branch, not a ticket-patch regression.
+
+The narrow test patch makes the fixture use `isBukkit=true`. The original rejection assertion is
+unchanged. Two new tests independently cover default-constructor renamed regular items and Bukkit
+predicate/exact assignment in both input orders. All 19 shapeless cases pass; the targeted
+`VanillaFeatureTestSuite` and full `test createPaperclipJar` command pass. The patch survives
+`applyAllPatches`; regeneration changes only its one test patch. Runtime Minecraft sources remain
+unchanged and the baseline paperclip SHA-256 is unchanged:
+`dc7b4c85c6f5ea9080eece86318aea1fafcd020b8c295995c1987751aa662d50`.
+
+The ticket candidate remains inactive. No deployment or live benchmark followed these local gates.
+On Windows, use process-scoped Git author variables and `core.longpaths=true` for Weaver's generated
+repositories. Run fixup and rebuild tasks as separate invocations: scheduling both together can race
+the generated repository's `file` tag. Do not skip failing tests or change expected results merely
+to publish a build.
+
 Before any server upgrade, test an isolated copy for boot, plugin integrations, chunk loading,
 teleports, ticket renewal/expiry, region merges/splits, saves and unloads. Benchmark the upstream
 upgrade separately from the ticket candidate with unchanged distances and tick behavior. Keep a

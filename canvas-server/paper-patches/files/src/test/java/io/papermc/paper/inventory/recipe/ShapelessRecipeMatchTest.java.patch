@@ -1,0 +1,46 @@
+--- a/src/test/java/io/papermc/paper/inventory/recipe/ShapelessRecipeMatchTest.java
++++ b/src/test/java/io/papermc/paper/inventory/recipe/ShapelessRecipeMatchTest.java
+@@ -57,7 +_,7 @@
+             new Recipe.CommonInfo(true),
+             new CraftingRecipe.CraftingBookInfo(CraftingBookCategory.MISC, ""),
+             new ItemStackTemplate(Items.DIAMOND), // result is irrelevant to matches()
+-            List.of(ingredients)
++            List.of(ingredients), true // Canvas - match the CraftShapelessRecipe registration path
+         );
+     }
+ 
+@@ -114,6 +_,34 @@
+         assertTrue(matches(shapeless(regular(Items.STONE)), new ItemStack(Items.STONE)));
+         assertFalse(matches(shapeless(regular(Items.STONE)), new ItemStack(Items.DIRT)));
+     }
++
++    // Canvas start - guard the distinct default and Bukkit registration paths
++    @Test
++    void defaultConstructor_regularIngredientsAcceptRenamedItems() {
++        final ShapelessRecipe recipe = new ShapelessRecipe(
++            new Recipe.CommonInfo(true),
++            new CraftingRecipe.CraftingBookInfo(CraftingBookCategory.MISC, ""),
++            new ItemStackTemplate(Items.DIAMOND),
++            List.of(regular(Items.STONE), regular(Items.STONE))
++        );
++        // Direct grid matching accepts the item type. Recipe-book inventory filtering is separate.
++        assertTrue(matches(recipe, renamed(Items.STONE, "Fancy"), renamed(Items.STONE, "Fancy2")));
++        assertFalse(matches(recipe, renamed(Items.STONE, "Fancy"), new ItemStack(Items.DIRT)));
++    }
++
++    @Test
++    void bukkitPredicateAndExact_reserveTheExactItemRegardlessOfInputOrder() {
++        final ItemStack special = renamed(Items.STONE, "Special");
++        final ItemStack other = renamed(Items.STONE, "Other");
++        final ShapelessRecipe recipe = shapeless(
++            predicate(s -> s.is(Items.STONE), new ItemStack(Items.STONE)), exact(special)
++        );
++        // The default greedy matcher would consume Special for the predicate and fail the exact slot.
++        assertTrue(matches(recipe, special, other));
++        assertTrue(matches(recipe, other, special));
++        assertFalse(matches(recipe, other, renamed(Items.STONE, "Other2")));
++    }
++    // Canvas end - guard the distinct default and Bukkit registration paths
+ 
+     // ---- exact ingredients ---------------------------------------------------------------------
+ 
