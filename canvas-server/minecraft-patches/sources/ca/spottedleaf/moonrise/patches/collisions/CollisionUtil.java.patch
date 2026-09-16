@@ -1,0 +1,37 @@
+--- a/ca/spottedleaf/moonrise/patches/collisions/CollisionUtil.java
++++ b/ca/spottedleaf/moonrise/patches/collisions/CollisionUtil.java
+@@ -2024,16 +_,22 @@
+ 
+                                     AABB singleAABB = ((CollisionVoxelShape)blockCollision).moonrise$getSingleAABBRepresentation();
+                                     if (singleAABB != null) {
+-                                        singleAABB = singleAABB.move((double)blockX, (double)blockY, (double)blockZ);
++                                        // OriginWorks: test translated coordinates before allocating a result box.
++                                        final double minX = singleAABB.minX + (double)blockX;
++                                        final double minY = singleAABB.minY + (double)blockY;
++                                        final double minZ = singleAABB.minZ + (double)blockZ;
++                                        final double maxX = singleAABB.maxX + (double)blockX;
++                                        final double maxY = singleAABB.maxY + (double)blockY;
++                                        final double maxZ = singleAABB.maxZ + (double)blockZ;
+ 
+                                         // Not using the epsilon violates the collision rules but this is what Vanilla does.
+                                         // Check BlockCollisions.class
+                                         if (blockCollision == Shapes.block()) {
+-                                            if (!aabb.intersects(singleAABB)) {
++                                            if (!aabb.intersects(minX, minY, minZ, maxX, maxY, maxZ)) {
+                                                 continue;
+                                             }
+                                         } else {
+-                                            if (!voxelShapeIntersect(aabb, singleAABB)) {
++                                            if (!voxelShapeIntersect(aabb, minX, minY, minZ, maxX, maxY, maxZ)) {
+                                                 continue;
+                                             }
+                                         }
+@@ -2048,7 +_,7 @@
+                                             return true;
+                                         } else {
+                                             ret = true;
+-                                            intoAABB.add(singleAABB);
++                                            intoAABB.add(singleAABB.move((double)blockX, (double)blockY, (double)blockZ));
+                                             continue;
+                                         }
+                                     }
