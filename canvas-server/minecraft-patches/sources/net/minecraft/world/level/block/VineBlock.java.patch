@@ -1,0 +1,28 @@
+--- a/net/minecraft/world/level/block/VineBlock.java
++++ b/net/minecraft/world/level/block/VineBlock.java
+@@ -267,14 +_,18 @@
+     }
+ 
+     private boolean canSpread(final BlockGetter level, final BlockPos pos) {
+-        int radius = 4;
+-        Iterable<BlockPos> iterable = BlockPos.betweenClosed(pos.getX() - 4, pos.getY() - 1, pos.getZ() - 4, pos.getX() + 4, pos.getY() + 1, pos.getZ() + 4);
++        // OriginWorks: preserve betweenClosed's X/Y/Z order without its iterable/iterator.
++        final int minX = pos.getX() - 4;
++        final int minY = pos.getY() - 1;
++        final int minZ = pos.getZ() - 4;
++        final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
+         int max = 5;
+-
+-        for (BlockPos blockPos : iterable) {
+-            if (level.getBlockState(blockPos).is(this)) {
+-                if (--max <= 0) {
+-                    return false;
++        for (int z = 0; z < 9; ++z) {
++            for (int y = 0; y < 3; ++y) {
++                for (int x = 0; x < 9; ++x) {
++                    if (level.getBlockState(cursor.set(minX + x, minY + y, minZ + z)).is(this) && --max <= 0) {
++                        return false;
++                    }
+                 }
+             }
+         }
