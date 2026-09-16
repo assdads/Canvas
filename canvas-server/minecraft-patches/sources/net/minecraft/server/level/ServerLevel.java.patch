@@ -14,7 +14,7 @@
      }
  
      // Folia start - region threading
-@@ -1040,71 +_,84 @@
+@@ -1040,71 +_,91 @@
      // Paper start - optimise random ticking
      private final io.papermc.paper.threadedregions.util.SimpleThreadLocalRandomSource simpleRandom = io.papermc.paper.threadedregions.util.SimpleThreadLocalRandomSource.INSTANCE; // Folia - region threading
  
@@ -52,52 +52,73 @@
 -                if (index >= tickingBlocks) {
 -                    // most of the time we fall here
 -                    continue;
-+            final var states = section.getStates();
-+            final var tickList = ((ca.spottedleaf.moonrise.patches.block_counting.BlockCountingChunkSection)section).moonrise$getTickingBlockList();
-+            final int tickingBlocks = tickList.size();
-+            if (tickingBlocks == 0) continue;
-+
-+            final int offsetY = (sectionIndex + minSection) << 4;
-+
-+            // cached rng for block selection
-+            long rndCache = random.nextLong();
-+            int bitsLeft = 64;
-+
-+            for (int i = 0; i < tickSpeed; i++) {
-+                if (bitsLeft < 12) { // need 12 bits for 0-4095
-+                    rndCache = random.nextLong();
-+                    bitsLeft = 64;
-                 }
-+                bitsLeft -= 12;
-+
-+                final int index = (int)((rndCache >>> bitsLeft) & 0xFFF);
-+                if (index >= tickingBlocks) continue;
- 
-                 final int location = (int)tickList.getRaw(index) & 0xFFFF;
-                 final BlockState state = states.get(location);
- 
+-                }
+-
+-                final int location = (int)tickList.getRaw(index) & 0xFFFF;
+-                final BlockState state = states.get(location);
+-
 -                // do not use a mutable pos, as some random tick implementations store the input without calling immutable()!
 -                final BlockPos pos = new BlockPos((location & 15) | offsetX, ((location >>> (4 + 4)) & 15) | offsetY, ((location >>> 4) & 15) | offsetZ);
-+                final BlockPos pos = new BlockPos(
-+                    (location & 15) | offsetX,
-+                    ((location >>> 8) & 15) | offsetY,
-+                    ((location >>> 4) & 15) | offsetZ
-+                );
- 
+-
 -                state.randomTick((ServerLevel)(Object)this, pos, simpleRandom);
-+                state.randomTick(this, pos, random);
-                 if (doubleTickFluids) {
-                     final FluidState fluidState = state.getFluidState();
-                     if (fluidState.isRandomlyTicking()) {
+-                if (doubleTickFluids) {
+-                    final FluidState fluidState = state.getFluidState();
+-                    if (fluidState.isRandomlyTicking()) {
 -                        fluidState.randomTick((ServerLevel)(Object)this, pos, simpleRandom);
-+                        fluidState.randomTick(this, pos, random);
-                     }
-                 }
-             }
-         }
+-                    }
+-                }
+-            }
+-        }
 -
 -        return;
-     }
+-    }
++            this.origin$tickRandomSection(section, tickSpeed, (sectionIndex + minSection) << 4, offsetX, offsetZ, random, doubleTickFluids);
++        }
++    }
++
++    // OriginWorks: keep the empty-section scan separate from the random-tick callback body.
++    // Sections are still read live in ascending order; callbacks can replace later sections.
++    private void origin$tickRandomSection(final LevelChunkSection section, final int tickSpeed, final int offsetY,
++                                         final int offsetX, final int offsetZ, final net.minecraft.util.RandomSource random,
++                                         final boolean doubleTickFluids) {
++        final var states = section.getStates();
++        final var tickList = ((ca.spottedleaf.moonrise.patches.block_counting.BlockCountingChunkSection)section).moonrise$getTickingBlockList();
++        final int tickingBlocks = tickList.size();
++        if (tickingBlocks == 0) return;
++
++
++        // cached rng for block selection
++        long rndCache = random.nextLong();
++        int bitsLeft = 64;
++
++        for (int i = 0; i < tickSpeed; i++) {
++            if (bitsLeft < 12) { // need 12 bits for 0-4095
++                rndCache = random.nextLong();
++                bitsLeft = 64;
++            }
++            bitsLeft -= 12;
++
++            final int index = (int)((rndCache >>> bitsLeft) & 0xFFF);
++            if (index >= tickingBlocks) continue;
++
++            final int location = (int)tickList.getRaw(index) & 0xFFFF;
++            final BlockState state = states.get(location);
++
++            final BlockPos pos = new BlockPos(
++                (location & 15) | offsetX,
++                ((location >>> 8) & 15) | offsetY,
++                ((location >>> 4) & 15) | offsetZ
++            );
++
++            state.randomTick(this, pos, random);
++            if (doubleTickFluids) {
++                final FluidState fluidState = state.getFluidState();
++                if (fluidState.isRandomlyTicking()) {
++                    fluidState.randomTick(this, pos, random);
++                }
++            }
++        }
++    }
 +    // Canvas end - optimize random tick
      // Paper end - optimise random ticking
  
