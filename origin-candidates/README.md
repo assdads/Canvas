@@ -1,4 +1,11 @@
-# Unapplied ticket-maintenance candidate
+# Ticket-maintenance candidate reference
+
+This file preserves the original standalone hunk. Its applied counterpart is committed in `canvas-server/minecraft-patches/sources/ca/spottedleaf/moonrise/patches/chunk_system/scheduling/ChunkHolderManager.java.patch`.
+Full baseline/candidate builds and isolated two-boot force-load/save smoke runs passed. There is
+no production deployment or benchmark result yet; timed-ticket expiry, unload completion, player
+teleports and production integrations still need checking. See [current status](../ORIGIN.md).
+
+The sections below record the earlier fixture work and original integration checklist.
 
 `no-expiry-postwork.patch` skips post-expiration bookkeeping for one chunk when
 `TicketSet.expireAndRemoveInto` returns zero. It does not skip timer advancement, section-level

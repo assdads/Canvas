@@ -23,11 +23,40 @@ scheduler, config, API, or plugin behavior. Treat the upgrade as separate from o
 
 ## Current patch status
 
-`origin-candidates/no-expiry-postwork.patch` is an **unapplied** five-line candidate for generated
-`ChunkHolderManager.java`. It is deliberately outside Canvas's build patch directories. Ordinary
-builds do not include it. See [the candidate record](origin-candidates/README.md) for verification
-and limits. A newer baseline distribution has been built and test-verified locally; no custom
-Canvas build has been deployed from this fork.
+### Vine traversal experiment (2026-09-16)
+
+A separate `VineBlock.canSpread` candidate removes iterable/iterator overhead while preserving
+all block reads and their order. Full build/tests, a 300-case traversal regression, an opt-in
+allocation probe and four reset-isolated ABBA runs passed. Method-level savings are measured;
+a server-wide gain is not established. See [evidence and limitations](origin-candidates/vine-spread-results.md).
+The offline clone was restored and left stopped; production was not changed.
+
+### Earlier ticket candidate
+
+The five-line ticket candidate is now applied locally through
+`canvas-server/minecraft-patches/sources/ca/spottedleaf/moonrise/patches/chunk_system/scheduling/ChunkHolderManager.java.patch`.
+The source change and full `test createPaperclipJar` build passed; the server test XML contains
+9,278 entries with no failures/errors. `origin-candidates/no-expiry-postwork.patch` remains the
+original reference hunk. The applied patch is committed as an experimental change: every
+baseline and candidate build measured for the later retained optimizations (vine traversal,
+deferred collision boxes, random-tick layout, lazy tick lists/maps, activation exclusions,
+shared zero storage) contained this hunk in BOTH legs, so it is part of the tested source state.
+
+Matched baseline and candidate distributions each passed two fresh-world boots, explicit forced
+chunk-ticket add/remove commands, graceful saves and marker-block persistence across restart in
+an isolated QA directory on the Survival host. Additional isolated probes observed both ticket
+and chunk-holder records disappear after release, then reloaded the saved marker successfully.
+Exact expiry-tick timing and real-player teleport behavior were not measured.
+
+Both distributions then completed a guarded 500-bot/10,000-spawned-mob comparison on Survival.
+Plugin JAR and recorded configuration fingerprints matched between legs; only the launcher and
+extracted runtime differed. Hottest-region two-snapshot means were 32.990 ms baseline and
+30.725 ms candidate, but the ticket-maintenance inclusive sample share rose from 6.762% to
+7.367%. With only one sequential pair, varying entities/chunks and one additional player, this
+is NOT a demonstrated ticket-CPU saving. No new linkage or chunk load/save exceptions were found;
+existing plugin configuration errors remain separate. Survival was restored to its pre-test
+26.2-835 launcher/runtime, with density enabled and distances unchanged. No production worlds
+were rolled back. The candidate stays experimental; no production deployment is authorized by it.
 
 The applied OriginWorks test patch routes custom-ingredient cases through the Bukkit registration
 constructor and adds two branch-routing regressions. It changes no runtime code.

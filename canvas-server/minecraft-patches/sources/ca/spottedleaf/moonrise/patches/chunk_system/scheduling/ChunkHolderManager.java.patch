@@ -1,0 +1,14 @@
+--- a/ca/spottedleaf/moonrise/patches/chunk_system/scheduling/ChunkHolderManager.java
++++ b/ca/spottedleaf/moonrise/patches/chunk_system/scheduling/ChunkHolderManager.java
+@@ -967,6 +_,11 @@
+                         removedList = new Ticket[tickets.size()];
+                     }
+                     final int removed = tickets.expireAndRemoveInto(removedList);
++                    if (removed == 0) {
++                        // Lifetimes were ticked, but membership and its minimum level are unchanged.
++                        // Keep the section-level propagation pass below: it may carry pending updates.
++                        continue;
++                    }
+                     final int levelAfter = getTicketLevelAt(tickets);
+ 
+                     if (tickets.isEmpty()) {
