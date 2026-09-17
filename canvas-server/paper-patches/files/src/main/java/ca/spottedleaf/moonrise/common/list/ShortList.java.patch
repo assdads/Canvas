@@ -1,0 +1,58 @@
+--- a/src/main/java/ca/spottedleaf/moonrise/common/list/ShortList.java
++++ b/src/main/java/ca/spottedleaf/moonrise/common/list/ShortList.java
+@@ -5,9 +_,17 @@
+ 
+ public final class ShortList {
+ 
+-    private final Short2ShortOpenHashMap map = new Short2ShortOpenHashMap();
+-    {
+-        this.map.defaultReturnValue(Short.MIN_VALUE);
++    // OriginWorks: most chunk sections never contain a random-ticking block.
++    // Keep the membership index absent until insertion or explicit capacity reservation.
++    private Short2ShortOpenHashMap map;
++
++    private Short2ShortOpenHashMap getOrCreateMap() {
++        if (this.map == null) {
++            final Short2ShortOpenHashMap map = new Short2ShortOpenHashMap();
++            map.defaultReturnValue(Short.MIN_VALUE);
++            this.map = map;
++        }
++        return this.map;
+     }
+ 
+     private static final short[] EMPTY_LIST = new short[0];
+@@ -31,12 +_,12 @@
+         if (byIndex.length < len) {
+             this.byIndex = Arrays.copyOf(byIndex, len);
+         }
+-        this.map.ensureCapacity(len);
++        this.getOrCreateMap().ensureCapacity(len);
+     }
+ 
+     public boolean add(final short value) {
+         final int count = (int)this.count;
+-        final short currIndex = this.map.putIfAbsent(value, (short)count);
++        final short currIndex = this.getOrCreateMap().putIfAbsent(value, (short)count);
+ 
+         if (currIndex != Short.MIN_VALUE) {
+             return false; // already in this list
+@@ -56,6 +_,9 @@
+     }
+ 
+     public boolean remove(final short value) {
++        if (this.map == null) {
++            return false;
++        }
+         final short index = this.map.remove(value);
+         if (index == Short.MIN_VALUE) {
+             return false;
+@@ -76,6 +_,8 @@
+ 
+     public void clear() {
+         this.count = (short)0;
+-        this.map.clear();
++        if (this.map != null) {
++            this.map.clear();
++        }
+     }
+ }
