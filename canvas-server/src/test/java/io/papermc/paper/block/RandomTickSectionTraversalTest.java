@@ -64,6 +64,49 @@ class RandomTickSectionTraversalTest {
         }
     }
 
+    @Test
+    void observesActivationAndRemovalAcrossSectionBoundariesAndTails() throws Exception {
+        for (int count : new int[] {0, 1, 2, 3, 4, 5, 7, 8, 9, 24, 73, 128, 254}) {
+            ServerLevel level = mock(ServerLevel.class);
+            LevelChunk chunk = mock(LevelChunk.class);
+            RandomSource random = mock(RandomSource.class);
+            when(random.nextLong()).thenReturn(0L);
+            RegionizedWorldData worldData = mock(RegionizedWorldData.class);
+            CanvasRegionizedWorldData canvas = mock(CanvasRegionizedWorldData.class);
+            Field rng = CanvasRegionizedWorldData.class.getDeclaredField("simpleUnsafeLocalRandom");
+            rng.setAccessible(true); rng.set(canvas, random);
+            when(worldData.getCanvasWorldData()).thenReturn(canvas);
+            when(level.getMinSectionY()).thenReturn(-4);
+            when(chunk.getPos()).thenReturn(new ChunkPos(0, 0));
+            LevelChunkSection empty = mock(LevelChunkSection.class);
+            LevelChunkSection[] sections = new LevelChunkSection[count];
+            java.util.Arrays.fill(sections, empty);
+            when(chunk.getSections()).thenReturn(sections);
+            BlockState state = mock(BlockState.class, RETURNS_DEEP_STUBS);
+            when(state.getFluidState().isRandomlyTicking()).thenReturn(false);
+            LevelChunkSection ticking = section(state, 0);
+            if (count > 0) sections[0] = ticking;
+            if (count > 1) sections[count - 1] = ticking;
+            List<Integer> visited = new ArrayList<>();
+            doAnswer(invocation -> {
+                BlockPos position = invocation.getArgument(1);
+                int index = (position.getY() >> 4) + 4;
+                visited.add(index);
+                // Replaces the next raw array entry, including 3->4, 7->8 and tail boundaries.
+                if (index + 1 < count) sections[index + 1] = ticking;
+                // Remove a later active section during a callback. It becomes active again
+                // only when the immediately preceding section is actually visited.
+                if (index + 2 < count) sections[count - 1] = empty;
+                return null;
+            }).when(state).randomTick(eq(level), any(BlockPos.class), eq(random));
+            Method method = ServerLevel.class.getDeclaredMethod("optimiseRandomTick", LevelChunk.class, int.class, RegionizedWorldData.class);
+            method.setAccessible(true); method.invoke(level, chunk, 1, worldData);
+            assertEquals(java.util.stream.IntStream.range(0, count).boxed().toList(), visited, "sections=" + count);
+            verify(random, times(count)).nextLong();
+            verify(empty, never()).getStates();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static LevelChunkSection section(BlockState state, int position) {
         LevelChunkSection section = mock(LevelChunkSection.class);
