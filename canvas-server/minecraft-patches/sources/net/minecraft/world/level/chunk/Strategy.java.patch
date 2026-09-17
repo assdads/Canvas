@@ -1,0 +1,30 @@
+--- a/net/minecraft/world/level/chunk/Strategy.java
++++ b/net/minecraft/world/level/chunk/Strategy.java
+@@ -21,6 +_,8 @@
+     protected final int globalPaletteBitsInMemory;
+     private final int bitsPerAxis;
+     private final int entryCount;
++    // Immutable zero indices; palettes and non-zero storage remain container-local.
++    private final net.minecraft.util.ZeroBitStorage zeroBitStorage;
+ 
+     private Strategy(final IdMap<T> globalMap, final int bitsPerAxis) {
+         this.globalMap = globalMap;
+@@ -28,6 +_,7 @@
+         this.globalPaletteBitsInMemory = minimumBitsRequiredForDistinctValues(globalMap.size());
+         this.bitsPerAxis = bitsPerAxis;
+         this.entryCount = 1 << bitsPerAxis * 3;
++        this.zeroBitStorage = new net.minecraft.util.ZeroBitStorage(this.entryCount);
+     }
+ 
+     public static <T> Strategy<T> createForBlockStates(final IdMap<T> registry) {
+@@ -60,6 +_,10 @@
+                 };
+             }
+         };
++    }
++
++    net.minecraft.util.ZeroBitStorage zeroBitStorage() {
++        return this.zeroBitStorage;
+     }
+ 
+     public int entryCount() {

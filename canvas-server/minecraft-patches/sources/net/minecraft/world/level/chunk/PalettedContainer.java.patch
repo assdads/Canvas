@@ -1,0 +1,28 @@
+--- a/net/minecraft/world/level/chunk/PalettedContainer.java
++++ b/net/minecraft/world/level/chunk/PalettedContainer.java
+@@ -19,7 +_,6 @@
+ import net.minecraft.util.ExtraCodecs;
+ import net.minecraft.util.SimpleBitStorage;
+ import net.minecraft.util.ThreadingDetector;
+-import net.minecraft.util.ZeroBitStorage;
+ import org.jspecify.annotations.Nullable;
+ 
+ public class PalettedContainer<T> implements PaletteResize<T>, PalettedContainerRO<T> {
+@@ -163,7 +_,7 @@
+         }
+ 
+         BitStorage storage = dataConfiguration.bitsInMemory() == 0
+-            ? new ZeroBitStorage(this.strategy.entryCount())
++            ? this.strategy.zeroBitStorage()
+             : new SimpleBitStorage(dataConfiguration.bitsInMemory(), this.strategy.entryCount());
+         Palette<T> palette = dataConfiguration.createPalette(this.strategy, List.of());
+         return new PalettedContainer.Data<>(dataConfiguration, storage, palette);
+@@ -315,7 +_,7 @@
+         Palette<T> palette;
+         if (storedConfiguration.bitsInMemory() == 0) {
+             palette = storedConfiguration.createPalette(strategy, paletteEntries);
+-            storage = new ZeroBitStorage(entryCount);
++            storage = strategy.zeroBitStorage();
+         } else {
+             Optional<LongStream> dataOpt = discData.storage();
+             if (dataOpt.isEmpty()) {
