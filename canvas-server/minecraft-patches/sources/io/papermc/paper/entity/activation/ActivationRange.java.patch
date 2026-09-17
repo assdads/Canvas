@@ -1,0 +1,34 @@
+--- a/io/papermc/paper/entity/activation/ActivationRange.java
++++ b/io/papermc/paper/entity/activation/ActivationRange.java
+@@ -146,6 +_,8 @@
+         maxRange = Math.max(maxRange, villagerActivationRange);
+         maxRange = Math.min((world.spigotConfig.simulationDistance << 4) - 8, maxRange);
+ 
++        // Call-local identity set. Never cache foreign entities or carry activation state across ticks.
++        final java.util.Set<Entity> activated = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+         for (final Player player : world.getLocalPlayers()) { // Folia - region threading
+             player.activatedTick = io.papermc.paper.threadedregions.RegionizedServer.getCurrentTick(); // Folia - region threading
+             if (world.spigotConfig.ignoreSpectatorActivation && player.isSpectator()) {
+@@ -166,7 +_,11 @@
+             // Folia end - region threading
+ 
+             final java.util.List<Entity> entities = new java.util.ArrayList<>();  // Folia - region threading - bypass getEntities thread check, we perform a check on the entities later
+-            ((net.minecraft.server.level.ServerLevel)world).moonrise$getEntityLookup().getEntities((Entity)null, maxBB, entities, null); // Folia - region threading - bypass getEntities thread check, we perform a check on the entities later
++            if (activated.isEmpty()) {
++                ((net.minecraft.server.level.ServerLevel)world).moonrise$getEntityLookup().getEntities((Entity)null, maxBB, entities, null);
++            } else {
++                ((net.minecraft.server.level.ServerLevel)world).moonrise$getEntityLookup().getEntities((Entity)null, maxBB, entities, null, activated);
++            } // Folia - region threading - bypass getEntities thread check, we perform a check on the entities later
+             final boolean tickMarkers = world.paperConfig().entities.markers.tick;
+             for (final Entity entity : entities) {
+                 // Folia start - region threading
+@@ -179,6 +_,9 @@
+                 }
+ 
+                 ActivationRange.activateEntity(entity, bbByType); // Folia - region threading
++                if (entity.activatedTick >= io.papermc.paper.threadedregions.RegionizedServer.getCurrentTick()) {
++                    activated.add(entity);
++                }
+             }
+         }
+     }

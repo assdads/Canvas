@@ -66,7 +66,11 @@ class ActivationCandidateListTest {
         alwaysActive(owned); alwaysActive(foreign);
         owned.activatedTick = foreign.activatedTick = marker.activatedTick = Long.MIN_VALUE;
         AtomicInteger queries = new AtomicInteger();
-        doAnswer(invocation -> {
+        org.mockito.stubbing.Answer<Object> query = invocation -> {
+            if (invocation.getArguments().length == 5) {
+                java.util.Set<Entity> excluded = invocation.getArgument(4);
+                assertEquals(java.util.Set.of(owned), excluded);
+            }
             List<Entity> into = invocation.getArgument(2);
             assertTrue(into.isEmpty(), "A previous player's candidates escaped into the next query");
             assertNull(invocation.getArgument(3), "Do not reorder filtering into the spatial query");
@@ -74,7 +78,9 @@ class ActivationCandidateListTest {
             assertEquals((queries.get() % 2 == 0 ? 0 : 40) - 32, bounds.minX);
             if (queries.getAndIncrement() % 2 == 0) into.addAll(List.of(owned, foreign, marker));
             return null;
-        }).when(lookup).getEntities(isNull(Entity.class), any(AABB.class), anyList(), isNull());
+        };
+        doAnswer(query).when(lookup).getEntities(isNull(Entity.class), any(AABB.class), anyList(), isNull());
+        doAnswer(query).when(lookup).getEntities(isNull(Entity.class), any(AABB.class), anyList(), isNull(), any(java.util.Set.class));
         try (var clock = mockStatic(RegionizedServer.class); var tick = mockStatic(TickThread.class)) {
             clock.when(RegionizedServer::getCurrentTick).thenReturn(100L);
             tick.when(() -> TickThread.isTickThreadFor(owned)).thenReturn(true);
@@ -119,4 +125,55 @@ class ActivationCandidateListTest {
         assertEquals(2, depth.get());
         assertEquals(100L, owned.activatedTick);
     }
+    @Test
+    @SuppressWarnings("unchecked")
+    void laterPlayerStillActivatesPendingRangeAndNextTickStartsFresh() throws Exception {
+        EntityLookup lookup = mock(EntityLookup.class);
+        ServerLevel world = world(List.of(player(0), player(40)), lookup);
+        world.spigotConfig.animalActivationRange = 16;
+        Entity near = mock(Entity.class), later = mock(Entity.class), immune = mock(Entity.class);
+        Marker marker = mock(Marker.class);
+        Entity foreign = mock(Entity.class);
+        Field type = Entity.class.getDeclaredField("activationType"); type.setAccessible(true);
+        type.set(near, io.papermc.paper.entity.activation.ActivationType.ANIMAL);
+        type.set(later, io.papermc.paper.entity.activation.ActivationType.ANIMAL);
+        when(near.getBoundingBox()).thenReturn(new AABB(0, 64, 0, 1, 65, 1));
+        when(later.getBoundingBox()).thenReturn(new AABB(30, 64, 0, 31, 65, 1));
+        near.activatedTick = later.activatedTick = marker.activatedTick = foreign.activatedTick = Long.MIN_VALUE;
+        immune.activatedTick = 200L;
+        AtomicInteger queries = new AtomicInteger();
+        org.mockito.stubbing.Answer<Object> query = invocation -> {
+            int index = queries.getAndIncrement();
+            java.util.Set<Entity> excluded = invocation.getArguments().length == 5
+                ? invocation.getArgument(4) : java.util.Set.of();
+            if ((index & 1) == 0) assertTrue(excluded.isEmpty(), "No state may escape this activation invocation");
+            else {
+                assertTrue(excluded.contains(near)); assertTrue(excluded.contains(immune));
+                assertFalse(excluded.contains(later), "A later player can still activate an out-of-range entity");
+                assertFalse(excluded.contains(marker)); assertFalse(excluded.contains(foreign));
+            }
+            List<Entity> into = invocation.getArgument(2);
+            for (Entity e : List.of(near, later, immune, marker, foreign)) if (!excluded.contains(e)) into.add(e);
+            return null;
+        };
+        doAnswer(query).when(lookup).getEntities(isNull(Entity.class), any(AABB.class), anyList(), isNull());
+        doAnswer(query).when(lookup).getEntities(isNull(Entity.class), any(AABB.class), anyList(), isNull(), any(java.util.Set.class));
+        try (var clock = mockStatic(RegionizedServer.class); var tick = mockStatic(TickThread.class)) {
+            tick.when(() -> TickThread.isTickThreadFor(near)).thenReturn(true);
+            tick.when(() -> TickThread.isTickThreadFor(later)).thenReturn(true);
+            tick.when(() -> TickThread.isTickThreadFor(immune)).thenReturn(true);
+            tick.when(() -> TickThread.isTickThreadFor(marker)).thenReturn(true);
+            tick.when(() -> TickThread.isTickThreadFor(foreign)).thenReturn(false);
+            for (long now : new long[]{100L, 101L}) {
+                clock.when(RegionizedServer::getCurrentTick).thenReturn(now);
+                ActivationRange.activateEntities(world);
+                assertEquals(now, near.activatedTick); assertEquals(now, later.activatedTick);
+                assertEquals(200L, immune.activatedTick);
+            }
+            tick.verify(() -> TickThread.isTickThreadFor(foreign), times(4));
+        }
+        assertEquals(4, queries.get());
+        assertEquals(Long.MIN_VALUE, marker.activatedTick); assertEquals(Long.MIN_VALUE, foreign.activatedTick);
+    }
+
 }

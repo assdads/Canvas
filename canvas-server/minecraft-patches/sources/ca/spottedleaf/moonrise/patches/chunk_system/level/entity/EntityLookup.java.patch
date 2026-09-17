@@ -1,0 +1,24 @@
+--- a/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/EntityLookup.java
++++ b/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/EntityLookup.java
+@@ -582,6 +_,12 @@
+     }
+ 
+     public void getEntities(final Entity except, final AABB box, final List<Entity> into, final Predicate<? super Entity> predicate) {
++        this.getEntities(except, box, into, predicate, null);
++    }
++
++    /** Activation-pass exclusions contain only already-activated, region-owned identities. */
++    public void getEntities(final Entity except, final AABB box, final List<Entity> into, final Predicate<? super Entity> predicate,
++                            final java.util.Set<Entity> excluded) {
+         final int minChunkX = (Mth.floor(box.minX) - 2) >> 4;
+         final int minChunkZ = (Mth.floor(box.minZ) - 2) >> 4;
+         final int maxChunkX = (Mth.floor(box.maxX) + 2) >> 4;
+@@ -613,7 +_,7 @@
+                             continue;
+                         }
+ 
+-                        chunk.getEntities(except, box, into, predicate);
++                        chunk.getEntities(except, box, into, predicate, excluded);
+                     }
+                 }
+             }

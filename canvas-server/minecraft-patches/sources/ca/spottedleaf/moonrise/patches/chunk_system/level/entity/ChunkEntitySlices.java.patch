@@ -13,3 +13,36 @@
      public List<Entity> getAllEntities() {
          final int len = this.entities.size();
          if (len == 0) {
+@@ -327,6 +_,11 @@
+         this.allEntities.getEntities(except, box, into, predicate);
+     }
+ 
++    public void getEntities(final Entity except, final AABB box, final List<Entity> into, final Predicate<? super Entity> predicate,
++                            final java.util.Set<Entity> excluded) {
++        this.allEntities.getEntities(except, box, into, predicate, excluded);
++    }
++
+ 
+     public boolean getEntities(final Entity except, final AABB box, final List<Entity> into, final Predicate<? super Entity> predicate,
+                                final int maxCount) {
+@@ -518,6 +_,11 @@
+         }
+ 
+         public void getEntities(final Entity except, final AABB box, final List<Entity> into, final Predicate<? super Entity> predicate) {
++            this.getEntities(except, box, into, predicate, null);
++        }
++
++        public void getEntities(final Entity except, final AABB box, final List<Entity> into, final Predicate<? super Entity> predicate,
++                                final java.util.Set<Entity> excluded) {
+             if (this.count == 0) {
+                 return;
+             }
+@@ -543,7 +_,7 @@
+                 for (int i = 0, len = Math.min(storage.length, list.size()); i < len; ++i) {
+                     final Entity entity = storage[i];
+ 
+-                    if (entity == null || entity == except || !entity.getBoundingBox().intersects(box)) {
++                    if (entity == null || entity == except || (excluded != null && excluded.contains(entity)) || !entity.getBoundingBox().intersects(box)) {
+                         continue;
+                     }
+ 
