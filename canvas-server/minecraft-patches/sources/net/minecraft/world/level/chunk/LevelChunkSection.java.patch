@@ -1,0 +1,52 @@
+--- a/net/minecraft/world/level/chunk/LevelChunkSection.java
++++ b/net/minecraft/world/level/chunk/LevelChunkSection.java
+@@ -29,7 +_,9 @@
+     private boolean isClient;
+     private static final short CLIENT_FORCED_SPECIAL_COLLIDING_BLOCKS = (short)9999;
+     private short specialCollidingBlocks;
+-    private final ca.spottedleaf.moonrise.common.list.ShortList tickingBlocks = new ca.spottedleaf.moonrise.common.list.ShortList();
++    // OriginWorks: untouched sections do not need a random-tick list.
++    // Materialized lists stay section-local and retain their identity after clear/recount.
++    private ca.spottedleaf.moonrise.common.list.ShortList tickingBlocks;
+ 
+     @Override
+     public final boolean moonrise$hasSpecialCollidingBlocks() {
+@@ -38,6 +_,9 @@
+ 
+     @Override
+     public final ca.spottedleaf.moonrise.common.list.ShortList moonrise$getTickingBlockList() {
++        if (this.tickingBlocks == null) {
++            this.tickingBlocks = new ca.spottedleaf.moonrise.common.list.ShortList();
++        }
+         return this.tickingBlocks;
+     }
+     // Paper end - block counting
+@@ -115,7 +_,7 @@
+         final boolean oldTicking = oldState.isRandomlyTicking();
+         final boolean newTicking = newState.isRandomlyTicking();
+         if (oldTicking != newTicking) {
+-            final ca.spottedleaf.moonrise.common.list.ShortList tickingBlocks = this.tickingBlocks;
++            final ca.spottedleaf.moonrise.common.list.ShortList tickingBlocks = this.moonrise$getTickingBlockList();
+             final short position = (short)(x | (z << 4) | (y << (4+4)));
+ 
+             if (oldTicking) {
+@@ -198,7 +_,9 @@
+         this.tickingBlockCount = (short)0;
+         this.tickingFluidCount = (short)0;
+         this.specialCollidingBlocks = (short)0;
+-        this.tickingBlocks.clear();
++        if (this.tickingBlocks != null) {
++            this.tickingBlocks.clear();
++        }
+ 
+         if (this.maybeHas((final BlockState state) -> !state.isAir())) {
+             final PalettedContainer.Data<BlockState> data = this.states.data;
+@@ -235,7 +_,7 @@
+                     final short[] raw = coordinates.elements();
+                     final int rawLen = raw.length;
+ 
+-                    final ca.spottedleaf.moonrise.common.list.ShortList tickingBlocks = this.tickingBlocks;
++                    final ca.spottedleaf.moonrise.common.list.ShortList tickingBlocks = this.moonrise$getTickingBlockList();
+ 
+                     tickingBlocks.setMinCapacity(Math.min((rawLen + tickingBlocks.size()) * 3 / 2, 16 * 16 * 16));
+ 
