@@ -1,6 +1,134 @@
 --- a/ca/spottedleaf/moonrise/patches/chunk_system/scheduling/ChunkHolderManager.java
 +++ b/ca/spottedleaf/moonrise/patches/chunk_system/scheduling/ChunkHolderManager.java
-@@ -967,6 +_,11 @@
+@@ -76,7 +_,10 @@
+     public final ReentrantAreaLock ticketLockArea;
+ 
+     private final ConcurrentChainedLong2ReferenceHashTable<TicketSet> tickets = new ConcurrentChainedLong2ReferenceHashTable<>();
+-    private final ConcurrentChainedLong2ReferenceHashTable<Long2IntOpenHashMap> sectionToChunkToExpireCount = new ConcurrentChainedLong2ReferenceHashTable<>();
++    // OriginWorks: region section -> chunk -> that chunk's live ticket set. A chunk is present exactly
++    // while its set's expiring count is above zero, so tick() reads the set from this map instead of
++    // looking the chunk up again in the ticket table.
++    private final ConcurrentChainedLong2ReferenceHashTable<Long2ObjectOpenHashMap<TicketSet>> sectionToChunkToExpireCount = new ConcurrentChainedLong2ReferenceHashTable<>();
+     final ChunkUnloadQueue unloadQueue;
+ 
+     private final ConcurrentChainedLong2ReferenceHashTable<NewChunkHolder> chunkHolders = ConcurrentChainedLong2ReferenceHashTable.createWithCapacity(16384, 0.25f);
+@@ -661,7 +_,13 @@
+         return this.addTicketAtLevel(type, CoordinateUtils.getChunkKey(chunkX, chunkZ), level, identifier);
+     }
+ 
+-    private void addExpireCount(final int chunkX, final int chunkZ) {
++    private void addExpireCount(final int chunkX, final int chunkZ, final TicketSet tickets) {
++        final int prevCount = tickets.getExpiringCount();
++        tickets.setExpiringCount(prevCount + 1);
++        if (prevCount != 0) {
++            return;
++        }
++
+         final long chunkKey = CoordinateUtils.getChunkKey(chunkX, chunkZ);
+ 
+         final int sectionShift = ((ChunkSystemServerLevel)this.world).moonrise$getRegionChunkShift();
+@@ -671,11 +_,17 @@
+         );
+ 
+         this.sectionToChunkToExpireCount.computeIfAbsent(sectionKey, (final long keyInMap) -> {
+-            return new Long2IntOpenHashMap();
+-        }).addTo(chunkKey, 1);
++            return new Long2ObjectOpenHashMap<>();
++        }).put(chunkKey, tickets);
+     }
+ 
+-    private void removeExpireCount(final int chunkX, final int chunkZ) {
++    private void removeExpireCount(final int chunkX, final int chunkZ, final TicketSet tickets) {
++        final int prevCount = tickets.getExpiringCount();
++        tickets.setExpiringCount(prevCount - 1);
++        if (prevCount != 1) {
++            return;
++        }
++
+         final long chunkKey = CoordinateUtils.getChunkKey(chunkX, chunkZ);
+ 
+         final int sectionShift = ((ChunkSystemServerLevel)this.world).moonrise$getRegionChunkShift();
+@@ -684,14 +_,10 @@
+             chunkZ >> sectionShift
+         );
+ 
+-        final Long2IntOpenHashMap removeCounts = this.sectionToChunkToExpireCount.get(sectionKey);
+-        final int prevCount = removeCounts.addTo(chunkKey, -1);
+-
+-        if (prevCount == 1) {
+-            removeCounts.remove(chunkKey);
+-            if (removeCounts.isEmpty()) {
+-                this.sectionToChunkToExpireCount.remove(sectionKey);
+-            }
++        final Long2ObjectOpenHashMap<TicketSet> expiringChunks = this.sectionToChunkToExpireCount.get(sectionKey);
++        expiringChunks.remove(chunkKey);
++        if (expiringChunks.isEmpty()) {
++            this.sectionToChunkToExpireCount.remove(sectionKey);
+         }
+     }
+ 
+@@ -726,15 +_,15 @@
+                 final long oldRemoveDelay = ((ChunkSystemTicket<T>)(Object)current).moonrise$getRemoveDelay();
+                 if (removeDelay != oldRemoveDelay) {
+                     if (oldRemoveDelay != NO_TIMEOUT_MARKER && removeDelay == NO_TIMEOUT_MARKER) {
+-                        this.removeExpireCount(chunkX, chunkZ);
++                        this.removeExpireCount(chunkX, chunkZ, ticketsAtChunk);
+                     } else if (oldRemoveDelay == NO_TIMEOUT_MARKER) {
+                         // since old != new, we have that NO_TIMEOUT_MARKER != new
+-                        this.addExpireCount(chunkX, chunkZ);
++                        this.addExpireCount(chunkX, chunkZ, ticketsAtChunk);
+                     }
+                 }
+             } else {
+                 if (removeDelay != NO_TIMEOUT_MARKER) {
+-                    this.addExpireCount(chunkX, chunkZ);
++                    this.addExpireCount(chunkX, chunkZ, ticketsAtChunk);
+                 }
+                 this.addTicketCounter(type, chunk);
+             }
+@@ -810,7 +_,7 @@
+             if (oldLevel != newLevel) {
+                 final Ticket unknownTicket = new Ticket(TicketType.UNKNOWN, level);
+                 if (ticketsAtChunk.add(unknownTicket)) {
+-                    this.addExpireCount(chunkX, chunkZ);
++                    this.addExpireCount(chunkX, chunkZ, ticketsAtChunk);
+                     this.addTicketCounter(TicketType.UNKNOWN, chunk);
+                 } else {
+                     throw new IllegalStateException("Should have been able to add " + unknownTicket + " to " + ticketsAtChunk);
+@@ -819,7 +_,7 @@
+ 
+             final long removeDelay = ((ChunkSystemTicket<T>)(Object)ticket).moonrise$getRemoveDelay();
+             if (removeDelay != NO_TIMEOUT_MARKER) {
+-                this.removeExpireCount(chunkX, chunkZ);
++                this.removeExpireCount(chunkX, chunkZ, ticketsAtChunk);
+             }
+ 
+             this.removeTicketCounter(type, chunk);
+@@ -948,25 +_,30 @@
+             );
+ 
+             try {
+-                final Long2IntOpenHashMap chunkToExpireCount = this.sectionToChunkToExpireCount.get(sectionKey);
++                final Long2ObjectOpenHashMap<TicketSet> chunkToExpireCount = this.sectionToChunkToExpireCount.get(sectionKey);
+                 if (chunkToExpireCount == null) {
+                     // lost to some race
+                     continue;
+                 }
+ 
+-                for (final Iterator<Long2IntMap.Entry> iterator1 = chunkToExpireCount.long2IntEntrySet().fastIterator(); iterator1.hasNext();) {
+-                    final Long2IntMap.Entry entry = iterator1.next();
++                for (final Iterator<Long2ObjectMap.Entry<TicketSet>> iterator1 = chunkToExpireCount.long2ObjectEntrySet().fastIterator(); iterator1.hasNext();) {
++                    final Long2ObjectMap.Entry<TicketSet> entry = iterator1.next();
+ 
+                     final long chunkKey = entry.getLongKey();
+-                    final int expireCount = entry.getIntValue();
++                    final TicketSet tickets = entry.getValue();
++                    final int expireCount = tickets.getExpiringCount();
+ 
+-                    final TicketSet tickets = this.tickets.get(chunkKey);
+                     final int levelBefore = getTicketLevelAt(tickets);
+ 
+                     if (tickets.size() > removedList.length) {
                          removedList = new Ticket[tickets.size()];
                      }
                      final int removed = tickets.expireAndRemoveInto(removedList);
@@ -12,3 +140,15 @@
                      final int levelAfter = getTicketLevelAt(tickets);
  
                      if (tickets.isEmpty()) {
+@@ -982,9 +_,8 @@
+                         continue;
+                     }
+ 
+-                    if (newExpireCount != 0) {
+-                        entry.setValue(newExpireCount);
+-                    } else {
++                    tickets.setExpiringCount(newExpireCount);
++                    if (newExpireCount == 0) {
+                         iterator1.remove();
+                     }
+ 

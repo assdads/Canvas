@@ -23,6 +23,15 @@ scheduler, config, API, or plugin behavior. Treat the upgrade as separate from o
 
 ## Current patch status
 
+### Ticket expiry bookkeeping (2026-09-17)
+
+`ChunkHolderManager.tick()` no longer re-looks-up each expiring chunk's `TicketSet` in the
+concurrent ticket table; the section index now holds the set and the set carries its own
+expiring-ticket count. Full build/tests pass and eight reset-isolated legs (ABBA then BAAB, 100
+scattered bots) cut the ticket-maintenance share of region samples from 16.4% to 13.8%, but
+whole-process CPU (-4.0% then +0.7%) and region MSPT are within noise. Experimental. See
+[ticket-lookup-results.md](origin-candidates/ticket-lookup-results.md).
+
 ### Vine traversal experiment (2026-09-16)
 
 A separate `VineBlock.canSpread` candidate removes iterable/iterator overhead while preserving

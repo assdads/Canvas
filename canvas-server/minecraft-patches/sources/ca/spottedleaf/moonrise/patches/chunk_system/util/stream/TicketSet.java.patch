@@ -1,0 +1,27 @@
+--- a/ca/spottedleaf/moonrise/patches/chunk_system/util/stream/TicketSet.java
++++ b/ca/spottedleaf/moonrise/patches/chunk_system/util/stream/TicketSet.java
+@@ -15,6 +_,9 @@
+ 
+     private Ticket[] tickets;
+     private int size;
++    // OriginWorks: number of tickets here with a finite remove delay. ChunkHolderManager owns and
++    // updates it under the chunk's ticket lock; copies do not carry it.
++    private int expiringCount;
+ 
+     public TicketSet(final int initialCapacity) {
+         this.tickets = new Ticket[initialCapacity];
+@@ -91,6 +_,14 @@
+         }
+ 
+         this.tickets[this.size] = null;
++    }
++
++    public int getExpiringCount() {
++        return this.expiringCount;
++    }
++
++    public void setExpiringCount(final int expiringCount) {
++        this.expiringCount = expiringCount;
+     }
+ 
+     public TicketSet copy() {
