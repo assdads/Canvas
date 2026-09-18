@@ -23,6 +23,18 @@ scheduler, config, API, or plugin behavior. Treat the upgrade as separate from o
 
 ## Current patch status
 
+### Production A/B on Survival, 835 vs fork, 500 bots + 10k mobs (2026-09-18)
+
+One fresh-boot leg each on the live server. Hottest-region census over hold+60..+360 s: 835 build
+30.66 ms mean / 30.47 median, fork (`1303db61`, e9e038ae content) 29.74 / 28.69 (-3 % / -5.8 %) with
+opposite trends and overlapping series; process CPU flat; TPS 20 both. **Not a demonstrated production
+gain** - the hottest production region is a 41-player crowd, where the fork is null on the clone.
+The first fork attempt deadlocked every tick thread through OriginPerformanceAudit nesting a
+`StampedLock` read inside `computeForAllChunkRegions` (identical bytecode on 835; fixed in OPA 1.0.25,
+not a fork bug). The newer upstream rewrites `config/canvas-server.yml` and `config/canvas-worlds.yml`
+on boot; both were restored on rollback. Production runs the 835 build again. See
+[production-ab-20260918.md](origin-candidates/production-ab-20260918.md).
+
 ### Stacked comparison, fork vs clean upstream (2026-09-18)
 
 Fork `e9e038ae` (every retained patch, old Paper base) against the unmodified upstream build
