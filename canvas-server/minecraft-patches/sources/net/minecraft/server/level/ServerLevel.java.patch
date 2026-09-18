@@ -14,7 +14,7 @@
      }
  
      // Folia start - region threading
-@@ -1040,71 +_,91 @@
+@@ -1040,71 +_,105 @@
      // Paper start - optimise random ticking
      private final io.papermc.paper.threadedregions.util.SimpleThreadLocalRandomSource simpleRandom = io.papermc.paper.threadedregions.util.SimpleThreadLocalRandomSource.INSTANCE; // Folia - region threading
  
@@ -33,16 +33,14 @@
          final int offsetX = cpos.x() << 4;
          final int offsetZ = cpos.z() << 4;
  
-+        final net.minecraft.util.RandomSource random = worldData.getCanvasWorldData().simpleUnsafeLocalRandom;
-+
-         for (int sectionIndex = 0, sectionsLen = sections.length; sectionIndex < sectionsLen; sectionIndex++) {
+-        for (int sectionIndex = 0, sectionsLen = sections.length; sectionIndex < sectionsLen; sectionIndex++) {
 -            final int offsetY = (sectionIndex + minSection) << 4;
-             final LevelChunkSection section = sections[sectionIndex];
+-            final LevelChunkSection section = sections[sectionIndex];
 -            final net.minecraft.world.level.chunk.PalettedContainer<net.minecraft.world.level.block.state.BlockState> states = section.getStates();
-             if (!section.isRandomlyTickingBlocks()) {
-                 continue;
-             }
- 
+-            if (!section.isRandomlyTickingBlocks()) {
+-                continue;
+-            }
+-
 -            final ca.spottedleaf.moonrise.common.list.ShortList tickList = ((ca.spottedleaf.moonrise.patches.block_counting.BlockCountingChunkSection)section).moonrise$getTickingBlockList();
 -
 -            for (int i = 0; i < tickSpeed; ++i) {
@@ -72,12 +70,34 @@
 -
 -        return;
 -    }
-+            this.origin$tickRandomSection(section, tickSpeed, (sectionIndex + minSection) << 4, offsetX, offsetZ, random, doubleTickFluids);
++        final net.minecraft.util.RandomSource random = worldData.getCanvasWorldData().simpleUnsafeLocalRandom;
++
++        // OriginWorks start - random-tick section mask
++        // Only sections flagged in the chunk's bitmap are touched; each flagged section is still
++        // checked live and visited in ascending order, exactly as the full scan did.
++        final long[] words = chunk.origin$randomTickWordsForTick(sections);
++        final int sectionsLen = sections.length;
++        for (int word = 0, wordCount = words.length; word < wordCount; ++word) {
++            long remaining = words[word];
++            while (remaining != 0L) {
++                final int bit = Long.numberOfTrailingZeros(remaining);
++                final int sectionIndex = (word << 6) | bit;
++                if (sectionIndex >= sectionsLen) {
++                    break;
++                }
++                final LevelChunkSection section = sections[sectionIndex];
++                if (section.isRandomlyTickingBlocks()) {
++                    this.origin$tickRandomSection(section, tickSpeed, (sectionIndex + minSection) << 4, offsetX, offsetZ, random, doubleTickFluids);
++                }
++                // Re-read the live word: a callback may have activated or cleared a later section through the chunk.
++                remaining = io.canvasmc.canvas.world.chunk.RandomTickSectionMask.remainingAfter(words[word], bit);
++            }
 +        }
++        // OriginWorks end - random-tick section mask
 +    }
 +
-+    // OriginWorks: keep the empty-section scan separate from the random-tick callback body.
-+    // Sections are still read live in ascending order; callbacks can replace later sections.
++    // OriginWorks: keep the section selection separate from the random-tick callback body.
++    // Flagged sections are read live in ascending order; see RandomTickSectionMask for the contract.
 +    private void origin$tickRandomSection(final LevelChunkSection section, final int tickSpeed, final int offsetY,
 +                                         final int offsetX, final int offsetZ, final net.minecraft.util.RandomSource random,
 +                                         final boolean doubleTickFluids) {

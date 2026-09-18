@@ -23,6 +23,17 @@ scheduler, config, API, or plugin behavior. Treat the upgrade as separate from o
 
 ## Current patch status
 
+### Random-tick section bitmap (2026-09-18)
+
+Each `LevelChunk` keeps a `long[]` of sections that may hold random-ticking blocks, updated by
+`LevelChunk.setBlockState` and rebuilt every 20 passes; `optimiseRandomTick` visits only flagged
+sections, still checked live and in ascending order. Eight reset-isolated legs (ABBA then BAAB,
+100 scattered bots): hottest-region MSPT -5.7%, container CPU -6.0%, every candidate leg below
+every baseline leg; the scan's share of region samples 30.2% -> 23.9% with block callbacks flat.
+A section activated behind the chunk (direct section write or array replacement) can miss up to
+20 passes before the rescan sees it; it is never ticked when inactive. Experimental. See
+[random-tick-section-mask-results.md](origin-candidates/random-tick-section-mask-results.md).
+
 ### Ticket expiry bookkeeping (2026-09-17)
 
 `ChunkHolderManager.tick()` no longer re-looks-up each expiring chunk's `TicketSet` in the

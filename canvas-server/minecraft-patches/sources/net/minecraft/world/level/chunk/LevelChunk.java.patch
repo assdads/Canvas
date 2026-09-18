@@ -9,12 +9,36 @@
      private boolean loaded;
      private final ServerLevel level; // CraftBukkit - type
      private @Nullable Supplier<FullChunkStatus> fullStatus;
-@@ -134,6 +_,18 @@
+@@ -134,6 +_,42 @@
      private final int maxSection;
      private final boolean debug;
      private final BlockState defaultBlockState;
 +    // Pufferfish start - instead of using a random every time the chunk is ticked, define when lightning strikes preemptively
 +    private int lightningTick;
++    // OriginWorks start - random-tick section mask
++    // Bitmap of sections that may hold random-ticking blocks; contract in RandomTickSectionMask.
++    private long @Nullable [] origin$randomTickWords; // sized by the first rescan, then updated in place
++    private int origin$randomTickRescanCountdown;      // 0 on a fresh chunk, so the first pass rescans
++
++    /** Live words to start a random-tick pass with; rescans every RESCAN_TICKS passes. */
++    public final long[] origin$randomTickWordsForTick(final LevelChunkSection[] sections) {
++        if (--this.origin$randomTickRescanCountdown <= 0) {
++            this.origin$randomTickRescanCountdown = io.canvasmc.canvas.world.chunk.RandomTickSectionMask.RESCAN_TICKS;
++            return this.origin$randomTickWords = io.canvasmc.canvas.world.chunk.RandomTickSectionMask.rescan(this.origin$randomTickWords, sections);
++        }
++        final long[] words = this.origin$randomTickWords;
++        return words != null ? words : (this.origin$randomTickWords = io.canvasmc.canvas.world.chunk.RandomTickSectionMask.rescan(null, sections));
++    }
++
++    /** The live words, or null before the first random-tick pass. */
++    public final long @Nullable [] origin$randomTickWords() {
++        return this.origin$randomTickWords;
++    }
++
++    public final int origin$randomTickRescanCountdown() {
++        return this.origin$randomTickRescanCountdown;
++    }
++    // OriginWorks end - random-tick section mask
 +
 +    // shouldDoLightning compiles down to 29 bytes, which with the default of 35 byte inlining should guarantee an inline
 +    public final boolean shouldDoLightning(final net.minecraft.util.RandomSource source) {
@@ -74,7 +98,23 @@
      }
  
      @Override
-@@ -383,10 +_,19 @@
+@@ -368,7 +_,8 @@
+     public @Nullable BlockState setBlockState(final BlockPos pos, final BlockState state, final @Block.UpdateFlags int flags) {
+         ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this.level, pos, "Updating block asynchronously"); // Folia - region threading
+         int y = pos.getY();
+-        LevelChunkSection section = this.getSection(this.getSectionIndex(y));
++        final int sectionIndex = this.getSectionIndex(y); // OriginWorks - random-tick section mask
++        LevelChunkSection section = this.getSection(sectionIndex); // OriginWorks - random-tick section mask
+         boolean wasEmpty = section.hasOnlyAir();
+         if (wasEmpty && state.isAir()) {
+             return null;
+@@ -378,15 +_,25 @@
+         int localY = y & 15;
+         int localZ = pos.getZ() & 15;
+         BlockState oldState = section.setBlockState(localX, localY, localZ, state);
++        io.canvasmc.canvas.world.chunk.RandomTickSectionMask.update(this.origin$randomTickWords, sectionIndex, section); // OriginWorks - random-tick section mask
+         if (oldState == state) {
+             return null;
          }
  
          Block newBlock = state.getBlock();
