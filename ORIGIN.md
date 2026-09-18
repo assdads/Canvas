@@ -23,6 +23,24 @@ scheduler, config, API, or plugin behavior. Treat the upgrade as separate from o
 
 ## Current patch status
 
+### Stacked comparison, fork vs clean upstream (2026-09-18)
+
+Fork `e9e038ae` (every retained patch, old Paper base) against the unmodified upstream build
+`366dd16e`, four ABBA legs per workload on the clone. Scattered 100 bots: hottest-region MSPT
+**-12.8%**, container CPU **-6.5%**, live heap **-14.1% (-761 MB)**, every fork leg below every
+upstream leg. Mixed crowd (64 bots + 1,280 mobs, one region): **no measurable change** in four
+legs (-1.2% MSPT, -0.6% CPU, legs overlap). See
+[stacked-fork-vs-upstream-results.md](origin-candidates/stacked-fork-vs-upstream-results.md).
+
+### Upstream sync (2026-09-18)
+
+`main` fast-forwarded to upstream `4a0ed14a` ("Update Upstream (Paper)", `paperRef`
+`a2a42c5b` -> `e5fe71723e2ffde7cc9fafc085ac3bb73e63175e`) and merged into `origin-patches` as
+`42bee392`. `applyAllPatches` re-derived the sources on the new Paper base with every fork patch
+applying cleanly; full build passed (canvas-api 519, canvas-server 9,319 tests, 0 failures; jar
+`1049eddb...`). That merged jar has **not** been benchmarked: every measurement below, including
+the stacked fork-vs-upstream comparison, was taken on builds from the previous Paper base.
+
 ### Grass light read through the held chunk (2026-09-18)
 
 `SpreadingSnowyBlock.randomTick` now reads the light check through the `LevelChunk` it already
