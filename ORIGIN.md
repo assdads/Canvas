@@ -23,6 +23,18 @@ scheduler, config, API, or plugin behavior. Treat the upgrade as separate from o
 
 ## Current patch status
 
+### Grass light read through the held chunk (2026-09-18)
+
+`SpreadingSnowyBlock.randomTick` now reads the light check through the `LevelChunk` it already
+looked up, via a new `StarLightInterface.getRawBrightness(BlockPos, int, ChunkAccess)` overload,
+instead of a second concurrent chunk-table lookup for the same chunk. Eight reset-isolated legs
+(ABBA then BAAB, 100 scattered bots): container CPU -7.5% with every candidate leg below every
+baseline leg; hottest-region MSPT -4.9% but with overlapping legs; heap flat. Profile:
+`getRawBrightness` share 4.26% -> 1.14%, grass `randomTick` 8.59% -> 6.11%, unrelated paths flat.
+Same light values by construction (the held chunk is the chunk the lookup returns, or a wrapper
+that delegates every read to it). Experimental. See
+[grass-light-held-chunk-results.md](origin-candidates/grass-light-held-chunk-results.md).
+
 ### Random-tick section bitmap (2026-09-18)
 
 Each `LevelChunk` keeps a `long[]` of sections that may hold random-ticking blocks, updated by

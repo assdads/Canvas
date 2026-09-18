@@ -1,0 +1,16 @@
+--- a/net/minecraft/world/level/lighting/LevelLightEngine.java
++++ b/net/minecraft/world/level/lighting/LevelLightEngine.java
+@@ -114,6 +_,13 @@
+         return this.lightEngine.getRawBrightness(pos, skyDampen); // Paper - rewrite chunk system
+     }
+ 
++    // OriginWorks start - light read with a caller-held chunk
++    /** See {@link ca.spottedleaf.moonrise.patches.starlight.light.StarLightInterface#getRawBrightness(BlockPos, int, net.minecraft.world.level.chunk.ChunkAccess)}. */
++    public int getRawBrightness(final BlockPos pos, final int skyDampen, final net.minecraft.world.level.chunk.ChunkAccess chunk) {
++        return this.lightEngine.getRawBrightness(pos, skyDampen, chunk);
++    }
++    // OriginWorks end - light read with a caller-held chunk
++
+     public boolean lightOnInColumn(final long sectionZeroNode) {
+         throw new UnsupportedOperationException(); // Paper - rewrite chunk system // Paper - not implemented on server
+     }

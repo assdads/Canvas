@@ -1,0 +1,21 @@
+--- a/ca/spottedleaf/moonrise/patches/starlight/light/StarLightInterface.java
++++ b/ca/spottedleaf/moonrise/patches/starlight/light/StarLightInterface.java
+@@ -313,8 +_,17 @@
+     }
+ 
+     public int getRawBrightness(final BlockPos pos, final int ambientDarkness) {
+-        final ChunkAccess chunk = this.getAnyChunkNow(pos.getX() >> 4, pos.getZ() >> 4);
++        return this.getRawBrightness(pos, ambientDarkness, this.getAnyChunkNow(pos.getX() >> 4, pos.getZ() >> 4));
++    }
+ 
++    // OriginWorks start - light read with a caller-held chunk
++    /**
++     * Same result as {@link #getRawBrightness(BlockPos, int)} when {@code chunk} is the chunk that
++     * {@link #getAnyChunkNow(int, int)} would return for {@code pos}; lets a caller that already holds
++     * the chunk skip the chunk-table lookup. {@code null} reads as an unloaded chunk.
++     */
++    public int getRawBrightness(final BlockPos pos, final int ambientDarkness, final ChunkAccess chunk) {
++    // OriginWorks end - light read with a caller-held chunk
+         final int sky = this.getSkyLightValue(pos, chunk) - ambientDarkness;
+         // Don't fetch the block light level if the skylight level is 15, since the value will never be higher.
+         if (sky == 15) {
